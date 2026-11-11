@@ -152,6 +152,11 @@ class Session(Protocol):
 ```
 
 ```python
+class Turn(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    role: Literal["user", "assistant"]
+    content: str
+
 class AgentResponse(BaseModel):
     text: str
     tool_calls: list[ToolCall] = []      # empty if no TOOL_INSPECTION
@@ -159,6 +164,8 @@ class AgentResponse(BaseModel):
     tokens_in: int
     tokens_out: int
 ```
+
+`Turn` is implemented in `gauntlet/models.py`. It records the public user/assistant conversation, preserves message text exactly, and rejects unsupported roles or extra fields. System prompts and tool events belong to the target's internal request and trace models, which are not implemented yet.
 
 Adapters:
 - `ReferenceTarget`: the in-repo support agent (5.2).
@@ -265,9 +272,9 @@ async def run_attack_episode(persona, attack, session, oracles, attacker_llm):
     for turn in range(persona.max_turns):
         msg = attack.script[turn] if turn < len(attack.script) \
               else await attacker_llm.next_message(persona, attack, history, hint)
-        history.append(Turn("user", msg))
+        history.append(Turn(role="user", content=msg))
         resp = await session.respond(history)
-        history.append(Turn("assistant", resp.text))
+        history.append(Turn(role="assistant", content=resp.text))
         verdict = oracles.check(history, resp, session)
         if verdict.attempted or verdict.executed:
             break
