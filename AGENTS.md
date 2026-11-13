@@ -1,10 +1,12 @@
 # Project Instructions
 
-## Handoff after every prompt
+## Handoff after implementation changes
 
-Read and follow `skills/update-handoff/SKILL.md` for every user-prompt turn in this project, including questions, reviews, and turns waiting for input. On a fresh session or after context loss, read `HANDOFF.md` before continuing.
+Read and follow `skills/update-handoff/SKILL.md` when maintaining continuation context in this project. On a fresh session or after context loss, read `HANDOFF.md` before continuing.
 
-After completing the turn's work, update the root `HANDOFF.md` before the final response. Keep it concise and specifically for agent-to-agent continuation: current goal, relevant constraints, confirmed decisions, files changed, verification status, unfinished work, and next steps. Include a brief reason only when it affects continuation. Detailed explanations and teaching belong in the conversation. If work is waiting or interrupted, record that state honestly. The handoff is context; current instructions and verified files take precedence.
+Update the root `HANDOFF.md`, then commit and push its separate history, only when the current turn makes implementation changes to project code, tests, or configuration, including explicitly requested workflow-instruction changes. Questions, explanations, learning discussions, read-only reviews/checks, planning, and waiting for input leave the handoff and its history untouched when no implementation changes were made. Learning-state edits alone and pre-existing uncommitted files do not trigger an update. An explicit user request to update or synchronize the handoff also applies.
+
+On qualifying turns, keep the handoff concise and specifically for agent-to-agent continuation: current goal, relevant constraints, confirmed decisions, files changed, verification status, unfinished work, and next steps. Include a brief reason only when it affects continuation. Detailed explanations and teaching belong in the conversation. Record unfinished or interrupted implementation honestly. The handoff is context; current instructions and verified files take precedence.
 
 ## Learning as we build
 

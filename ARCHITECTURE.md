@@ -151,21 +151,41 @@ class Session(Protocol):
     def world_snapshot(self) -> dict | None: ...               # only if STATE_VERIFICATION
 ```
 
+`TargetAgent` and `Session` are implemented as structural typing protocols in `gauntlet/target/base.py`. Concrete adapters must provide the declared attributes and methods; they need not inherit from these protocols. The declarations do not implement adapters or enforce fresh-session isolation at runtime. `world_snapshot()` returns `None` when state verification is unavailable. A pre-execution tool-interception contract is still required before implementing guarded adapters that advertise `TOOL_BLOCKING`.
+
 ```python
 class Turn(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     role: Literal["user", "assistant"]
     content: str
 
+class ToolCall(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True, allow_inf_nan=False)
+    name: str
+    args: dict[str, JsonValue]
+    status: Literal["requested", "blocked", "executed"]
+    result: JsonValue = None
+
 class AgentResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True, allow_inf_nan=False)
     text: str
-    tool_calls: list[ToolCall] = []      # empty if no TOOL_INSPECTION
-    latency_ms: float
-    tokens_in: int
-    tokens_out: int
+    tool_calls: list[ToolCall] = Field(default_factory=list)  # empty if no TOOL_INSPECTION
+    latency_ms: float = Field(ge=0)
+    tokens_in: int = Field(ge=0)
+    tokens_out: int = Field(ge=0)
 ```
 
-`Turn` is implemented in `gauntlet/models.py`. It records the public user/assistant conversation, preserves message text exactly, and rejects unsupported roles or extra fields. System prompts and tool events belong to the target's internal request and trace models, which are not implemented yet.
+`Turn`, `ToolCall`, and `AgentResponse` are implemented in `gauntlet/models.py`. `Turn` records the public user/assistant conversation, preserves message text exactly, and rejects unsupported roles or extra fields. System prompts and the enclosing raw/final trace models remain unimplemented.
+
+`ToolCall` records the tool name, its arguments, its result, and an explicit observed status:
+
+- `requested`: the agent emitted a tool request; execution has not been recorded. This also represents inspection that exposes only the request, without execution evidence.
+- `blocked`: a guard prevented the tool from running. `result` can contain the block error returned to the agent for recovery.
+- `executed`: the tool implementation was invoked. This does **not** prove success, a world-state change, or a policy violation; a tool can return an error or fail after partial side effects. Oracles must still inspect results and world state.
+
+Status is required, so adapters cannot silently treat every request as executed. Arguments use string-keyed dictionaries of `JsonValue`; results may be any `JsonValue`, including `None`. This preserves nested JSON data for storage/replay, rejects unsupported Python objects and non-finite numbers, and makes no execution inference from an empty result. These are observation records, not executable tool dispatch or guard logic. A future guard must retain the original request in the raw trace and record its blocked/executed outcome in the final trace; trace pairing and interception contracts remain future work.
+
+`AgentResponse` groups reply text, observed tool-call records, and adapter-supplied timing/token measurements for one response. Text and metrics are required; empty text and zero measurements are valid. Latency must be finite and nonnegative, and token counts must be nonnegative integers. Strict validation rejects coerced metrics, malformed nested calls, and extra fields. The default factory creates a separate empty tool-call list for each response. An empty list from a target without `TOOL_INSPECTION` means no tool observations are available, not proof that no tool ran. The model validates supplied data; measuring latency, collecting usage, and implementing `Session.respond` remain adapter work.
 
 Adapters:
 - `ReferenceTarget`: the in-repo support agent (5.2).
